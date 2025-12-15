@@ -1,0 +1,193 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FormatLab SceneGraph",
+  "description": "FIBO-compatible SceneGraph schema for professional visual generation",
+  "type": "object",
+  "required": ["version", "id", "camera", "lighting", "color"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Schema version"
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique scene identifier (UUID)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "name": {
+      "type": "string",
+      "description": "Scene name/description"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Random seed for reproducibility"
+    },
+    "subject": {
+      "type": "object",
+      "description": "Main subject/composition",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "What is being depicted"
+        },
+        "style": {
+          "type": "string",
+          "enum": ["photorealistic", "illustration", "3d_render", "oil_painting", "watercolor", "sketch"],
+          "description": "Visual style"
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" }
+          },
+          "description": "3D position"
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "required": ["lens_mm", "fov"],
+      "description": "Camera parameters",
+      "properties": {
+        "lens_mm": {
+          "type": "number",
+          "minimum": 14,
+          "maximum": 300,
+          "description": "Lens focal length in mm"
+        },
+        "fov": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 180,
+          "description": "Field of view in degrees"
+        },
+        "angle": {
+          "type": "number",
+          "description": "Camera angle/rotation in degrees"
+        },
+        "tilt": {
+          "type": "number",
+          "description": "Camera tilt in degrees"
+        },
+        "depth_of_field": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Depth of field intensity"
+        }
+      }
+    },
+    "lighting": {
+      "type": "object",
+      "description": "Lighting setup",
+      "properties": {
+        "key": {
+          "type": "object",
+          "description": "Key light (main light source)",
+          "properties": {
+            "angle": { "type": "number", "description": "Light angle in degrees" },
+            "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "color": { "type": "string", "pattern": "^#[0-9A-F]{6}$" },
+            "temperature": { "type": "number", "description": "Color temperature in Kelvin" }
+          }
+        },
+        "fill": {
+          "type": "object",
+          "description": "Fill light (secondary)",
+          "properties": {
+            "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "angle": { "type": "number" }
+          }
+        },
+        "rim": {
+          "type": "object",
+          "description": "Rim/back light",
+          "properties": {
+            "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "color": { "type": "string", "pattern": "^#[0-9A-F]{6}$" }
+          }
+        },
+        "ambient": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Ambient light level"
+        }
+      }
+    },
+    "color": {
+      "type": "object",
+      "required": ["palette"],
+      "description": "Color parameters",
+      "properties": {
+        "palette": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9A-F]{6}$"
+          },
+          "minItems": 1,
+          "description": "Array of hex colors"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Color temperature (0=cool, 100=warm)"
+        },
+        "saturation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Color saturation"
+        },
+        "contrast": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Contrast level"
+        },
+        "vibrance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Color vibrance"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "description": "Lock and constraint controls",
+      "properties": {
+        "lock_subject_identity": { "type": "boolean" },
+        "lock_composition": { "type": "boolean" },
+        "lock_palette": { "type": "boolean" },
+        "lock_camera": { "type": "boolean" },
+        "lock_lighting": { "type": "boolean" },
+        "negative_constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Things to avoid in generation"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata",
+      "properties": {
+        "created_by": { "type": "string" },
+        "project": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

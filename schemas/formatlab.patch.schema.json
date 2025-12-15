@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FormatLab JSON Patch",
+  "description": "RFC6902 JSON Patch for SceneGraph modifications",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["op", "path"],
+    "properties": {
+      "op": {
+        "type": "string",
+        "enum": ["add", "remove", "replace", "move", "copy", "test"],
+        "description": "JSON Patch operation"
+      },
+      "path": {
+        "type": "string",
+        "description": "JSON Pointer path to target"
+      },
+      "value": {
+        "description": "New value for add/replace operations"
+      },
+      "from": {
+        "type": "string",
+        "description": "Source path for move/copy operations"
+      }
+    }
+  }
+}

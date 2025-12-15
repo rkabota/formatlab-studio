@@ -1,0 +1,70 @@
+{
+  "version": "1.0",
+  "id": "scene_001_professional_portrait",
+  "timestamp": "2024-12-10T12:00:00Z",
+  "name": "Professional Portrait Studio",
+  "seed": 42,
+  "subject": {
+    "description": "Professional headshot of a business executive",
+    "style": "photorealistic",
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    }
+  },
+  "camera": {
+    "lens_mm": 85,
+    "fov": 50,
+    "angle": 0,
+    "tilt": 0,
+    "depth_of_field": 0.7
+  },
+  "lighting": {
+    "key": {
+      "angle": 45,
+      "intensity": 0.9,
+      "color": "#FFFFFF",
+      "temperature": 5600
+    },
+    "fill": {
+      "intensity": 0.4,
+      "angle": 315
+    },
+    "rim": {
+      "intensity": 0.5,
+      "color": "#FFFFFF"
+    },
+    "ambient": 0.3
+  },
+  "color": {
+    "palette": [
+      "#1a1a1a",
+      "#4a9eff",
+      "#ffffff",
+      "#e8e8e8"
+    ],
+    "temperature": 50,
+    "saturation": 0.8,
+    "contrast": 0.7,
+    "vibrance": 0.6
+  },
+  "constraints": {
+    "lock_subject_identity": true,
+    "lock_composition": false,
+    "lock_palette": false,
+    "lock_camera": false,
+    "lock_lighting": false,
+    "negative_constraints": [
+      "blurry",
+      "distorted",
+      "low quality"
+    ]
+  },
+  "metadata": {
+    "created_by": "formatlab_studio",
+    "project": "hackathon_demo",
+    "tags": ["portrait", "professional", "studio"],
+    "notes": "Professional studio lighting setup for corporate headshots"
+  }
+}

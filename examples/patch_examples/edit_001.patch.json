@@ -1,0 +1,27 @@
+[
+  {
+    "op": "replace",
+    "path": "/lighting/key/intensity",
+    "value": 0.75
+  },
+  {
+    "op": "replace",
+    "path": "/lighting/fill/intensity",
+    "value": 0.5
+  },
+  {
+    "op": "replace",
+    "path": "/color/temperature",
+    "value": 65
+  },
+  {
+    "op": "replace",
+    "path": "/camera/depth_of_field",
+    "value": 0.85
+  },
+  {
+    "op": "add",
+    "path": "/metadata/edit_notes",
+    "value": "Brightened fill light, warmed color temperature, increased DOF for more subject separation"
+  }
+]
