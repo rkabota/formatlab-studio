@@ -67,8 +67,8 @@ Respond ONLY with valid JSON in this format:
             instruction=instruction
         )
 
-        # Call Cerebras API
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # Call Cerebras API (compatible with OpenAI format)
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{settings.CEREBRAS_API_URL}/chat/completions",
                 headers={
