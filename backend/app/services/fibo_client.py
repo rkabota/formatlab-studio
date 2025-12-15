@@ -35,38 +35,70 @@ async def _call_fibo_api(
     seed: int,
     variant_index: int
 ) -> str:
-    """Call actual FIBO API"""
+    """Call actual FIBO API for real image generation"""
 
-    # TODO: Implement real FIBO API call
-    # For hackathon: structure is ready for integration
+    try:
+        import httpx
+    except ImportError:
+        # Fallback if httpx not available
+        return await _generate_demo(scene, seed, variant_index)
 
-    """
-    import aiohttp
-
-    payload = {
-        "prompt": scene.get("subject", {}).get("description", ""),
-        "parameters": {
+    try:
+        # Prepare FIBO API payload
+        # FIBO expects SceneGraph JSON + generation parameters
+        payload = {
+            "scene_graph": scene,
             "seed": seed,
-            "style": scene.get("subject", {}).get("style", "photorealistic"),
-            "width": 1024,
-            "height": 1024
-        },
-        "scene_graph": scene
-    }
+            "num_variants": 1,
+            "output_format": "png"
+        }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{settings.FIBO_API_URL}/generate",
-            json=payload,
-            headers={"Authorization": f"Bearer {settings.FIBO_API_KEY}"}
-        ) as resp:
-            result = await resp.json()
-            # Save image and return path
-            ...
-    """
+        # Call FIBO API
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{settings.FIBO_API_URL}/generate",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {settings.FIBO_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+            )
 
-    # Fallback to demo
-    return await _generate_demo(scene, seed, variant_index)
+        if response.status_code != 200:
+            print(f"FIBO API error: {response.status_code}")
+            print(f"Response: {response.text}")
+            return await _generate_demo(scene, seed, variant_index)
+
+        result = response.json()
+
+        # Extract image from response
+        # FIBO returns image bytes or URL
+        image_data = result.get("output", {}).get("images", [{}])[0].get("data")
+        if not image_data:
+            return await _generate_demo(scene, seed, variant_index)
+
+        # Save image
+        import base64
+        output_dir = settings.OUTPUTS_DIR
+        os.makedirs(output_dir, exist_ok=True)
+
+        image_path = os.path.join(
+            output_dir,
+            f"fibo_output_{seed}_{variant_index}.png"
+        )
+
+        # Decode and save image
+        image_bytes = base64.b64decode(image_data)
+        with open(image_path, "wb") as f:
+            f.write(image_bytes)
+
+        print(f"✓ Generated image via FIBO: {image_path}")
+        return image_path
+
+    except Exception as e:
+        print(f"FIBO API call failed: {str(e)}")
+        # Fallback to demo
+        return await _generate_demo(scene, seed, variant_index)
 
 async def _generate_demo(
     scene: Dict[str, Any],

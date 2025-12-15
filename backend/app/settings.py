@@ -34,7 +34,13 @@ class Settings(BaseSettings):
     # FIBO Integration
     FIBO_API_KEY: str = os.getenv("FIBO_API_KEY", "")
     FIBO_API_URL: str = os.getenv("FIBO_API_URL", "https://api.bria.ai/fibo")
-    DEMO_MODE: bool = os.getenv("DEMO_MODE", "True") == "True"
+    DEMO_MODE: bool = os.getenv("DEMO_MODE", "False") == "True"
+
+    # LLM Integration (Cerebras for NL -> JSON translation)
+    CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
+    CEREBRAS_API_URL: str = os.getenv("CEREBRAS_API_URL", "https://api.cerebras.ai/v1")
+    CEREBRAS_MODEL: str = os.getenv("CEREBRAS_MODEL", "llama-3.3-70b")
+    USE_LLM_TRANSLATOR: bool = os.getenv("USE_LLM_TRANSLATOR", "True") == "True"
 
     class Config:
         env_file = ".env"
