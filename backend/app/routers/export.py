@@ -3,7 +3,7 @@ Export Bundle endpoint - creates downloadable ZIP with all assets
 """
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import os
@@ -95,8 +95,8 @@ async def export_bundle(request: ExportRequest):
         zip_buffer.seek(0)
         filename = f"formatlab_export_{request.run_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
 
-        return FileResponse(
-            path=zip_buffer,
+        return StreamingResponse(
+            iter([zip_buffer.getvalue()]),
             media_type="application/zip",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
