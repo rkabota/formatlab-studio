@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     CEREBRAS_MODEL: str = os.getenv("CEREBRAS_MODEL", "llama-3.3-70b")
     USE_LLM_TRANSLATOR: bool = os.getenv("USE_LLM_TRANSLATOR", "True") == "True"
 
+    # n8n Integration (Workflow Orchestration)
+    N8N_ENABLED: bool = os.getenv("N8N_ENABLED", "True") == "True"
+    N8N_BASE_URL: str = os.getenv("N8N_BASE_URL", "https://rkabota.app.n8n.cloud")
+    N8N_API_KEY: str = os.getenv("N8N_API_KEY", "")
+    N8N_WEBHOOK_BASE: str = os.getenv("N8N_WEBHOOK_BASE", "https://rkabota.app.n8n.cloud/webhook")
+
     class Config:
         env_file = ".env"
         case_sensitive = True

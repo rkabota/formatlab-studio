@@ -1,0 +1,109 @@
+{
+  "name": "FormatLab - Export Bundle (ZIP)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "export",
+        "responseMode": "responseNode",
+        "responseData": "noData",
+        "options": {}
+      },
+      "id": "webhook_trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare export data\nconst runId = $input.first().json.run_id;\nconst sceneJson = $input.first().json.scene_json;\nconst patchJson = $input.first().json.patch_json || [];\nconst outputUrls = $input.first().json.output_urls || [];\nconst include16bit = $input.first().json.include_16bit !== false;\n\nconst metadata = {\n  export_id: require('crypto').randomUUID(),\n  run_id: runId,\n  timestamp: new Date().toISOString(),\n  include_16bit: include16bit,\n  num_variants: outputUrls.length,\n  scene_name: sceneJson.name || 'Untitled Scene',\n  seed: sceneJson.seed,\n  version: '1.0'\n};\n\nreturn {\n  export_id: metadata.export_id,\n  run_id: runId,\n  scene_json: sceneJson,\n  patch_json: patchJson,\n  output_urls: outputUrls,\n  metadata: metadata,\n  include_16bit: include16bit\n};"
+      },
+      "id": "prepare_export",
+      "name": "Prepare Export",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Download all images\nconst urls = $input.first().json.output_urls || [];\nconst images = [];\n\nfor (let i = 0; i < urls.length; i++) {\n  const url = urls[i];\n  const filename = `preview_${i}.png`;\n  \n  images.push({\n    index: i,\n    url: url,\n    filename: filename,\n    role: 'preview'\n  });\n}\n\nreturn {\n  ...($input.first().json),\n  images: images\n};"
+      },
+      "id": "prepare_images",
+      "name": "Prepare Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create ZIP bundle structure\nconst JSZip = require('jszip');\nconst zip = new JSZip();\n\nconst data = $input.first().json;\n\n// Add scene.json\nzip.file(\n  'scene.json',\n  JSON.stringify(data.scene_json, null, 2)\n);\n\n// Add patch.json\nif (data.patch_json && data.patch_json.length > 0) {\n  zip.file(\n    'patch.json',\n    JSON.stringify(data.patch_json, null, 2)\n  );\n}\n\n// Add metadata.json\nzip.file(\n  'metadata.json',\n  JSON.stringify(data.metadata, null, 2)\n);\n\n// Note: Images would be added here in real implementation\n// For now, just include references\nconst imageManifest = data.images.map(img => ({\n  filename: img.filename,\n  url: img.url,\n  role: img.role\n}));\n\nzip.file(\n  'images-manifest.json',\n  JSON.stringify(imageManifest, null, 2)\n);\n\n// Add schemas folder\nconst schemas = {\n  'scene.schema.json': {\n    type: 'object',\n    properties: {\n      version: { type: 'string' },\n      id: { type: 'string' },\n      subject: { type: 'object' },\n      camera: { type: 'object' },\n      lighting: { type: 'object' },\n      color: { type: 'object' },\n      constraints: { type: 'object' }\n    }\n  },\n  'patch.schema.json': {\n    type: 'array',\n    items: {\n      type: 'object',\n      properties: {\n        op: { enum: ['add', 'remove', 'replace', 'move', 'copy', 'test'] },\n        path: { type: 'string' },\n        value: {}\n      }\n    }\n  }\n};\n\nconst schemasFolder = zip.folder('schemas');\nfor (const [filename, schema] of Object.entries(schemas)) {\n  schemasFolder.file(filename, JSON.stringify(schema, null, 2));\n}\n\n// Generate ZIP\nconst zipped = await zip.generateAsync({ type: 'base64' });\n\nreturn {\n  export_id: data.export_id,\n  run_id: data.run_id,\n  zip_base64: zipped,\n  filename: `formatlab_export_${data.run_id.substring(0, 8)}_${new Date().toISOString().split('T')[0]}.zip`,\n  size: Buffer.from(zipped, 'base64').length,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "create_zip",
+      "name": "Create ZIP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWithData": true
+      },
+      "id": "respond_export",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "prepare_export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare_export": {
+      "main": [
+        [
+          {
+            "node": "prepare_images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare_images": {
+      "main": [
+        [
+          {
+            "node": "create_zip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_zip": {
+      "main": [
+        [
+          {
+            "node": "respond_export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "saveManualExecutions": true,
+    "executionOrder": "v1"
+  }
+}

@@ -1,5 +1,5 @@
 """
-Image analysis endpoint - extracts SceneGraph from images
+Image analysis endpoint - extracts SceneGraph from images via n8n
 """
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
@@ -11,16 +11,16 @@ import os
 
 from app.settings import settings
 from app.services.storage import save_upload
+from app.services.n8n_client import analyze_image as n8n_analyze
 
 router = APIRouter()
 
 @router.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     """
-    Analyze an uploaded image and extract SceneGraph JSON.
+    Analyze an uploaded image and extract SceneGraph JSON via n8n.
 
-    In demo mode: returns a templated SceneGraph
-    With FIBO integration: uses actual image understanding to generate SceneGraph
+    Delegates to n8n FIBO analysis workflow for professional image understanding.
     """
 
     try:
@@ -32,74 +32,25 @@ async def analyze_image(file: UploadFile = File(...)):
         file_path = await save_upload(file)
         upload_id = str(uuid.uuid4())
 
-        # Generate SceneGraph from image
-        # In demo mode, return templated response
-        scene_graph = {
-            "version": "1.0",
-            "id": f"scene_{upload_id[:8]}",
-            "timestamp": datetime.now().isoformat(),
-            "name": f"Analyzed from {file.filename}",
-            "seed": hash(file_path) % 10000,
-            "source_image": file_path,
-            "subject": {
-                "description": "Professional scene with careful composition",
-                "style": "photorealistic",
-                "position": {
-                    "x": 0,
-                    "y": 0,
-                    "z": 0
-                }
-            },
-            "camera": {
-                "lens_mm": 50,
-                "fov": 48,
-                "angle": 0,
-                "tilt": 0,
-                "depth_of_field": 0.5
-            },
-            "lighting": {
-                "key": {
-                    "angle": 45,
-                    "intensity": 0.85,
-                    "color": "#FFFFFF",
-                    "temperature": 5500
-                },
-                "fill": {
-                    "intensity": 0.35,
-                    "angle": 315
-                },
-                "rim": {
-                    "intensity": 0.4,
-                    "color": "#FFFFFF"
-                },
-                "ambient": 0.25
-            },
-            "color": {
-                "palette": ["#1a1a1a", "#4a9eff", "#ffffff", "#e8e8e8"],
-                "temperature": 50,
-                "saturation": 0.75,
-                "contrast": 0.65,
-                "vibrance": 0.5
-            },
-            "constraints": {
-                "lock_subject_identity": True,
-                "lock_composition": False,
-                "lock_palette": False,
-                "negative_constraints": ["blurry", "distorted"]
-            },
-            "metadata": {
-                "source_file": file.filename,
-                "upload_id": upload_id,
-                "analysis_mode": "demo_stub"
-            }
-        }
+        if not settings.N8N_ENABLED:
+            raise HTTPException(
+                status_code=503,
+                detail="n8n integration is not enabled"
+            )
+
+        # Call n8n analyze workflow
+        result = await n8n_analyze(
+            image_url=file_path,
+            file_name=file.filename or "image.jpg",
+            file_size=file.size or 0
+        )
 
         return {
-            "upload_id": upload_id,
+            "upload_id": result.get("upload_id", upload_id),
             "file_path": file_path,
             "file_size": file.size,
-            "scene_graph": scene_graph,
-            "message": "Image analyzed successfully (demo mode)"
+            "scene_graph": result.get("scene_graph", {}),
+            "message": "Image analyzed via n8n FIBO workflow"
         }
 
     except Exception as e:

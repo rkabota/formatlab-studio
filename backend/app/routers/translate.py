@@ -1,6 +1,6 @@
 """
-Natural Language to JSON Translation
-Converts prose instructions into FIBO-compatible JSON updates
+Natural Language to JSON Translation via n8n
+Converts prose instructions into FIBO-compatible JSON updates using Cerebras LLM
 """
 
 from fastapi import APIRouter, HTTPException
@@ -11,8 +11,8 @@ import jsonpatch
 import uuid
 from datetime import datetime
 
-from app.services.translator import translate_to_scene_update
-from app.services.cerebras_translator import translate_with_fallback
+from app.settings import settings
+from app.services.n8n_client import translate_instruction as n8n_translate
 
 router = APIRouter()
 
@@ -125,9 +125,9 @@ async def translate_with_rules(
 @router.post("/translate", response_model=TranslateResponse)
 async def translate(request: TranslateRequest):
     """
-    Translate natural language instructions into JSON SceneGraph updates.
+    Translate natural language instructions into JSON SceneGraph updates via n8n.
 
-    Uses Cerebras LLM if configured, falls back to rule-based patterns.
+    Uses Cerebras LLM through n8n workflow for professional JSON Patch generation.
 
     Supports:
     - Camera adjustments ("zoom in", "wider angle", "tilt up")
@@ -138,23 +138,30 @@ async def translate(request: TranslateRequest):
     """
 
     try:
+        if not settings.N8N_ENABLED:
+            raise HTTPException(
+                status_code=503,
+                detail="n8n integration is not enabled"
+            )
+
         translation_id = str(uuid.uuid4())
 
-        # Use LLM translator with fallback
-        result = await translate_with_fallback(
-            request.instruction,
-            request.current_scene
+        # Call n8n translate workflow
+        result = await n8n_translate(
+            instruction=request.instruction,
+            current_scene=request.current_scene,
+            return_patch=request.return_patch
         )
 
         # Extract patch if requested
         patch = result.get("patch") if request.return_patch else None
 
         return TranslateResponse(
-            translation_id=translation_id,
+            translation_id=result.get("translation_id", translation_id),
             instruction=request.instruction,
             updated_scene=result.get("updated_scene", request.current_scene),
             patch=patch,
-            diff_summary=result.get("explanation", result.get("diff_summary", "")),
+            diff_summary=result.get("reasoning", "Translation via Cerebras LLM"),
             confidence=result.get("confidence", 0.85)
         )
 

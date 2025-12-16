@@ -1,0 +1,130 @@
+{
+  "name": "FormatLab - Analyze Image",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "analyze",
+        "responseMode": "responseNode",
+        "responseData": "noData",
+        "options": {}
+      },
+      "id": "webhook_trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Analyze uploaded image\nconst imageUrl = $input.first().json.image_url;\nconst fileName = $input.first().json.file_name;\n\nreturn {\n  upload_id: require('crypto').randomUUID(),\n  file_path: imageUrl,\n  file_name: fileName,\n  file_size: $input.first().json.file_size || 0,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "process_upload",
+      "name": "Process Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.bria.ai/fibo/analyze",
+        "authentication": "genericCredentialType",
+        "genericCredentials": {
+          "authenticationType": "headerAuth",
+          "genericAuth": {
+            "httpHeaderAuth_header": "Authorization",
+            "httpHeaderAuth_credentials": "Bearer <%= $vars.FIBO_API_KEY %>"
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_token",
+              "value": "{{ $vars.FIBO_API_KEY }}"
+            }
+          ]
+        },
+        "contentType": "application/json",
+        "body": "{\n  \"image_url\": \"{{ $node.process_upload.json.file_path }}\",\n  \"analyze_elements\": true,\n  \"analyze_lighting\": true,\n  \"analyze_composition\": true\n}",
+        "options": {}
+      },
+      "id": "call_fibo_analyze",
+      "name": "Call FIBO Analyze API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Transform FIBO response to SceneGraph JSON\nconst fiboResult = $input.first().json;\n\nconst sceneGraph = {\n  version: \"1.0\",\n  id: `scene_${Date.now()}`,\n  timestamp: new Date().toISOString(),\n  source_image: $node.process_upload.json.file_path,\n  upload_id: $node.process_upload.json.upload_id,\n  \n  subject: {\n    description: fiboResult.description || \"Professional scene\",\n    style: fiboResult.style || \"photorealistic\",\n    position: { x: 0, y: 0, z: 0 }\n  },\n  \n  camera: {\n    lens_mm: fiboResult.camera?.lens_mm || 50,\n    fov: fiboResult.camera?.fov || 48,\n    angle: 0,\n    tilt: 0,\n    depth_of_field: 0.5\n  },\n  \n  lighting: {\n    key: {\n      angle: fiboResult.lighting?.key?.angle || 45,\n      intensity: fiboResult.lighting?.key?.intensity || 0.85,\n      color: fiboResult.lighting?.key?.color || \"#FFFFFF\",\n      temperature: fiboResult.lighting?.key?.temperature || 5500\n    },\n    fill: {\n      intensity: fiboResult.lighting?.fill?.intensity || 0.35,\n      angle: 315\n    },\n    rim: {\n      intensity: fiboResult.lighting?.rim?.intensity || 0.4,\n      color: fiboResult.lighting?.rim?.color || \"#FFFFFF\"\n    },\n    ambient: fiboResult.lighting?.ambient || 0.25\n  },\n  \n  color: {\n    palette: fiboResult.color?.palette || [\"#1a1a1a\", \"#4a9eff\", \"#ffffff\"],\n    temperature: 50,\n    saturation: 0.75,\n    contrast: 0.65,\n    vibrance: 0.5\n  },\n  \n  constraints: {\n    lock_subject_identity: true,\n    lock_composition: false,\n    lock_palette: false,\n    negative_constraints: [\"blurry\", \"distorted\"]\n  },\n  \n  metadata: {\n    analysis_mode: \"fibo\",\n    analyzed_at: new Date().toISOString()\n  }\n};\n\nreturn {\n  upload_id: $node.process_upload.json.upload_id,\n  file_path: $node.process_upload.json.file_path,\n  scene_graph: sceneGraph,\n  analysis_complete: true\n};"
+      },
+      "id": "transform_to_scene",
+      "name": "Transform to SceneGraph",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWithData": true
+      },
+      "id": "respond_analyze",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "process_upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process_upload": {
+      "main": [
+        [
+          {
+            "node": "call_fibo_analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "call_fibo_analyze": {
+      "main": [
+        [
+          {
+            "node": "transform_to_scene",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "transform_to_scene": {
+      "main": [
+        [
+          {
+            "node": "respond_analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "saveManualExecutions": true,
+    "executionOrder": "v1"
+  }
+}

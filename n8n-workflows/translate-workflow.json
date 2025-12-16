@@ -1,0 +1,122 @@
+{
+  "name": "FormatLab - Translate NL to JSON",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "translate",
+        "responseMode": "responseNode",
+        "responseData": "noData",
+        "options": {}
+      },
+      "id": "webhook_trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build Cerebras LLM prompt for JSON Patch generation\nconst instruction = $input.first().json.instruction;\nconst currentScene = $input.first().json.current_scene;\n\nconst systemPrompt = `You are a JSON Patch generator for image scene graphs.\nGiven a natural language instruction and the current scene JSON, generate a JSON Patch (RFC 6902) that modifies the scene.\n\nResponse MUST be valid JSON with this structure:\n{\n  \"patch\": [...JSON Patch operations...],\n  \"reasoning\": \"explanation of changes\",\n  \"confidence\": 0.0-1.0\n}\n\nSceneGraph structure:\n- /version, /id, /timestamp\n- /subject: {description, style, position}\n- /camera: {lens_mm, fov, angle, tilt, depth_of_field}\n- /lighting: {key, fill, rim, ambient}\n  - key: {angle, intensity, color, temperature}\n  - fill: {intensity, angle}\n  - rim: {intensity, color}\n  - ambient: value\n- /color: {palette[], temperature, saturation, contrast, vibrance}\n- /effects: {vignette, filmGrain, clarity, dehaze, sharpness}\n- /constraints: {lock_subject_identity, lock_composition, lock_palette, negative_constraints[]}`;\n\nconst userPrompt = `Current scene:\\n\\n\\`\\`\\`json\\n${JSON.stringify(currentScene, null, 2)}\\n\\`\\`\\`\\n\\nInstruction: \"${instruction}\"\\n\\nGenerate the JSON Patch to apply this instruction.`;\n\nreturn {\n  instruction,\n  current_scene: currentScene,\n  system_prompt: systemPrompt,\n  user_prompt: userPrompt,\n  translation_id: require('crypto').randomUUID()\n};"
+      },
+      "id": "prepare_llm_prompt",
+      "name": "Prepare LLM Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cerebras.ai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericCredentials": {
+          "authenticationType": "headerAuth",
+          "genericAuth": {
+            "httpHeaderAuth_header": "Authorization",
+            "httpHeaderAuth_credentials": "Bearer <%= $vars.CEREBRAS_API_KEY %>"
+          }
+        },
+        "sendHeaders": true,
+        "contentType": "application/json",
+        "body": "{\n  \"model\": \"llama-3.3-70b\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"{{ $node.prepare_llm_prompt.json.system_prompt }}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $node.prepare_llm_prompt.json.user_prompt }}\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 2000,\n  \"top_p\": 0.9\n}",
+        "options": {}
+      },
+      "id": "call_cerebras_llm",
+      "name": "Call Cerebras LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse LLM response and extract JSON Patch\nconst llmResponse = $input.first().json;\nconst content = llmResponse.choices[0].message.content;\n\n// Extract JSON from response (it might be wrapped in markdown code blocks)\nlet jsonStr = content;\nif (content.includes('```json')) {\n  jsonStr = content.split('```json')[1].split('```')[0];\n} else if (content.includes('```')) {\n  jsonStr = content.split('```')[1].split('```')[0];\n}\n\nlet parsedResponse;\ntry {\n  parsedResponse = JSON.parse(jsonStr.trim());\n} catch (e) {\n  // If parsing fails, return error\n  throw new Error(`Failed to parse LLM response: ${e.message}`);\n}\n\nconst patch = parsedResponse.patch || [];\nconst reasoning = parsedResponse.reasoning || \"\";\nconst confidence = parsedResponse.confidence || 0.8;\n\n// Apply patch to create updated scene\nconst jsonpatch = require('jsonpatch');\nlet updatedScene = JSON.parse(JSON.stringify($node.prepare_llm_prompt.json.current_scene));\n\ntry {\n  updatedScene = jsonpatch.applyPatch(updatedScene, patch)[0];\n} catch (e) {\n  console.error('Patch application failed:', e);\n}\n\nreturn {\n  translation_id: $node.prepare_llm_prompt.json.translation_id,\n  instruction: $node.prepare_llm_prompt.json.instruction,\n  patch: patch,\n  updated_scene: updatedScene,\n  reasoning: reasoning,\n  confidence: confidence,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "parse_translation",
+      "name": "Parse Translation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWithData": true
+      },
+      "id": "respond_translate",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "prepare_llm_prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare_llm_prompt": {
+      "main": [
+        [
+          {
+            "node": "call_cerebras_llm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "call_cerebras_llm": {
+      "main": [
+        [
+          {
+            "node": "parse_translation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_translation": {
+      "main": [
+        [
+          {
+            "node": "respond_translate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "saveManualExecutions": true,
+    "executionOrder": "v1"
+  }
+}

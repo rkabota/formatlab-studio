@@ -1,5 +1,5 @@
 """
-Generate endpoint - calls FIBO or demo generation
+Generate endpoint - calls FIBO via n8n for image generation
 """
 
 from fastapi import APIRouter, HTTPException
@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.settings import settings
-from app.services.fibo_client import generate_with_fibo_or_demo
+from app.services.n8n_client import generate_images as n8n_generate
 
 router = APIRouter()
 
@@ -26,34 +26,34 @@ class GenerateRequest(BaseModel):
 @router.post("/generate")
 async def generate_images(request: GenerateRequest):
     """
-    Generate images from SceneGraph using FIBO API.
+    Generate images from SceneGraph using FIBO API via n8n.
 
-    If FIBO API is not available, returns demo placeholder images.
+    Delegates to n8n FIBO generation workflow for async image generation with polling.
     """
 
     try:
-        run_id = str(uuid.uuid4())
-
-        # Apply patch if provided
-        final_scene = request.base_scene.copy()
-        if request.patch and request.apply_patch:
-            import jsonpatch
-            final_scene = jsonpatch.JsonPatch(request.patch).apply(final_scene)
+        if not settings.N8N_ENABLED:
+            raise HTTPException(
+                status_code=503,
+                detail="n8n integration is not enabled"
+            )
 
         # Use provided seed or hash scene
-        seed = request.seed if request.seed is not None else hash(json.dumps(final_scene, sort_keys=True)) % 100000
+        seed = request.seed if request.seed is not None else hash(json.dumps(request.base_scene, sort_keys=True)) % 100000
 
-        # Generate images
-        output_urls = []
-        for i in range(request.num_variants):
-            variant_seed = seed + i
-            # Call FIBO or demo generation
-            output_path = await generate_with_fibo_or_demo(
-                scene=final_scene,
-                seed=variant_seed,
-                variant_index=i
-            )
-            output_urls.append(output_path)
+        # Call n8n generate workflow
+        result = await n8n_generate(
+            base_scene=request.base_scene,
+            seed=seed,
+            num_variants=request.num_variants,
+            patch=request.patch,
+            apply_patch=request.apply_patch
+        )
+
+        # Extract run_id and output URLs
+        run_id = result.get("run_id", str(uuid.uuid4()))
+        output_urls = result.get("output_urls", [])
+        final_scene = result.get("scene_used", request.base_scene)
 
         # Store timeline entry
         timeline_entry = {
@@ -63,7 +63,8 @@ async def generate_images(request: GenerateRequest):
             "base_scene_hash": hash(json.dumps(request.base_scene, sort_keys=True)),
             "patch_count": len(request.patch) if request.patch else 0,
             "output_urls": output_urls,
-            "num_variants": request.num_variants
+            "num_variants": request.num_variants,
+            "status": "completed"
         }
 
         # Save timeline entry
@@ -78,7 +79,7 @@ async def generate_images(request: GenerateRequest):
             "output_urls": output_urls,
             "scene_used": final_scene,
             "timestamp": datetime.now().isoformat(),
-            "demo_mode": settings.DEMO_MODE
+            "via_n8n": True
         }
 
     except Exception as e:
